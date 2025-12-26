@@ -45,6 +45,5 @@ void consumer_task(void)
     release(&buf_lock);
     yield();
   }
-  printf("consumer sum=%d\n", sum);
   exit_process(0);
 }

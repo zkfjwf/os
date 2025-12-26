@@ -6,6 +6,7 @@ OBJDUMP = $(CROSS)objdump
 OBJCOPY = $(CROSS)objcopy
 
 # ==========================================
+# 1. 终极宽松编译选项
 # ==========================================
 CFLAGS = -Wall -O2 -ffreestanding -mcmodel=medany -march=rv64gc -mabi=lp64 
 CFLAGS += -fno-builtin -fno-omit-frame-pointer -fno-pie -no-pie
@@ -23,7 +24,7 @@ USER_LDFLAGS   = -N -e main -Ttext 0
 KSRCS = $(wildcard kernel/*.c) $(wildcard kernel/*.S)
 KOBJS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(KSRCS)))
 
-# 扫描 user 目录下所有的 .c 和 .S 
+# 扫描 user 目录下所有的 .c 和 .S (排除 usys.S 避免重复，后面会生成)
 USRCS = $(wildcard user/*.c) $(filter-out user/usys.S, $(wildcard user/*.S))
 # 把 .c .S 都换成 .o
 UOBJS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(USRCS)))
@@ -58,7 +59,8 @@ user/usys.S: user/usys.pl
 # 4. 链接 initcode
 # ==========================================
 
-
+# 只要是 user 下编译出来的 .o，全给我链接进去，不管有什么
+# 强制让 initcode 只包含 entry.c, 系统调用usys, 和刚才建的库文件 ulib_fake
 user/initcode.elf: user/entry.o user/usys.o user/ulib_fake.o
 	$(LD) $(USER_LDFLAGS) -o $@ user/entry.o user/usys.o user/ulib_fake.o
 

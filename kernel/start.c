@@ -10,10 +10,7 @@ extern void clear_screen(void);
 extern void console_puts(char *s);
 volatile uint64 g_backup_ra;
 volatile uint64 g_backup_sp;
-// 注意：编译器提示 pr_init 可能是写错了
-// 如果你的本意是初始化进程，应该是 procinit()
-// 如果你的本意是初始化打印，应该是 printfinit()
-// 如果你确实有一个函数叫 pr_init，请保留下面这行：
+
 extern void pr_init(void); 
 
 extern volatile int *timer_interrupt_hook;
@@ -57,6 +54,7 @@ void *page3 = alloc_page();
 // page3可能等于page1（取决于分配策略）
 free_page(page2);
 free_page(page3);
+printf("physical_memory alloc access\n");
 }
 
 void test_pagetable(void) {
@@ -74,15 +72,53 @@ assert(PTE_PA(*pte) == pa);
 assert(*pte & PTE_R);
 assert(*pte & PTE_W);
 assert(!(*pte & PTE_X));
+printf("pagetable test access\n");
 } 
-void test_virtual_memory(void) {
-printf("Before enabling paging...\n");
-// 启用分页
-kvminit();
-kvminithart();
-printf("After enabling paging...\n");
+void test_virtual_memory(void)
+{
+  // ==================== 分页启用前 ====================
+  printf("Before enabling paging...\n");
 
+  // -------- 测试 1：内核数据访问（分页前） --------
+  static int test_data = 12345;
+  printf("Data before paging: %d\n", test_data);
+
+  // -------- 测试 2：简单计算（验证代码可执行） --------
+  int x = 10;
+  int y = 20;
+  printf("Compute before paging: %d\n", x + y);
+
+  // ==================== 启用分页 ====================
+  printf("Enabling paging...\n");
+
+  kvminit();       // 构建内核页表
+  kvminithart();   // 写 satp，开启 Sv39 分页
+
+  // ==================== 分页启用后 ====================
+  printf("After enabling paging...\n");
+
+  // -------- 测试 3：内核代码是否仍可执行 --------
+  int a = 7;
+  int b = 8;
+  printf("Compute after paging: %d\n", a * b);
+
+  // -------- 测试 4：内核数据是否仍可访问 --------
+  test_data += 1;
+  printf("Data after paging: %d\n", test_data);
+
+  // -------- 测试 5：栈是否仍然可用 --------
+  int stack_test = 0xdead;
+  printf("Stack test value: 0x%x\n", stack_test);
+
+  // -------- 测试 6：设备访问是否正常（UART） --------
+  printf("UART still works after paging.\n");
+
+  // ==================== 结束标记 ====================
+  printf("Virtual memory test finished successfully.\n");
+
+  // 防止函数返回导致未知行为
 }
+
 void test_timer_interrupt(void) {
 printf("Testing timer interrupt...\n");
 // 记录中断前的时间
@@ -94,7 +130,6 @@ timer_interrupt_hook = &interrupt_count;
 // 等待几次中断
 
 while (interrupt_count < 5) {
-// 可以在这里执行其他任务
 static int last_count = -1;
         if (interrupt_count != last_count) {
              printf("Waiting for interrupt %d...", interrupt_count + 1);
@@ -149,8 +184,10 @@ static inline void cause_load_access_fault(void)
 void
 test_exception_handling(void)
 {
-     asm volatile("mv %0, ra" : "=r" (g_backup_ra));
-    asm volatile("mv %0, sp" : "=r" (g_backup_sp));
+  kvminit();       // 构建内核页表
+  kvminithart(); 
+   //  asm volatile("mv %0, ra" : "=r" (g_backup_ra));
+   // asm volatile("mv %0, sp" : "=r" (g_backup_sp));
   printf("Testing exception handling...\n");
 
   printf("[1/2] illegal instruction...\n");
@@ -162,13 +199,14 @@ test_exception_handling(void)
   printf("[2/2] returned after load fault trap\n");
 
   printf("Exception tests completed\n");
-  asm volatile(
+ /*asm volatile(
         "mv ra, %0\n"   
         "mv sp, %1\n"   
         "ret"            
         : 
         : "r" (g_backup_ra), "r" (g_backup_sp)
-    );
+    );  */
+    while(1);
 }
 
 
@@ -299,7 +337,6 @@ void debug_proc_table(void) {
             state_str, 
             p->priority, 
             p->ticks
-            // 如果你有 wait_ticks 也可以加上: , p->wait_ticks
         );
     }
     printf("----------------------------------------------------\n");
@@ -352,37 +389,37 @@ void start(void){
   //clear_line();
   pmm_init();
   procinit();
-  test_printf_basic();
-  test_physical_memory();
-  test_pagetable();
-  test_virtual_memory();
-  test_timer_interrupt();
-  test_exception_handling();
-  test_interrupt_overhead();
-  test_process_creation();
-  test_scheduler();
-  test_synchronization();
-  goto_xy(3,5);   //移动光标到第三行第五列
+  //test_printf_basic();
+  //test_physical_memory();
+  //test_pagetable();
+  //test_virtual_memory();
+  //test_timer_interrupt();
+  //test_exception_handling();
+  //test_interrupt_overhead();
+  //test_process_creation();
+  //test_scheduler();
+  //test_synchronization();
+  //goto_xy(3,5);   //移动光标到第三行第五列
 
 
-
+/*
   for(;;){
     int ch = uartgetc();
     if(ch >= 0) console_putc((char)ch);
   }
   
- /*
-   printf(">>> Scheduler Test: HIGH(4) vs LOW(1) <<<\n");
+ */
+
+  printf(">>> Scheduler Test: HIGH(10) vs LOW(1) <<<\n");
 
   // 直接创建两个死循环任务
-  // 此时我们在代码里写死优先级：HIGH=10, LOW=0
-  create_kthread("HIGH", 4, task_high);
+  create_kthread("HIGH", 10, task_high);
   create_kthread("LOW", 1,  task_low);
 
   printf(">>> Entering Scheduler...\n");
-  scheduler(); // 启动调度，永不返回
+  scheduler(); // 启动调度
   
   panic("scheduler returned");
-  */
+  
 }
 
